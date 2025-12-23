@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Esquivar Pelotas - IA Mejorada con Barra de Vidas</title>
+<style>
+body { margin:0; overflow:hidden; background:#000; color:#fff; font-family:sans-serif; text-align:center; }
+canvas { display:block; margin-top:80px; } /* canvas debajo de la barra de personajes */
+#topBar {
+  position: absolute;
+  top:0;
+  width:100%;
+  height:80px;
+  display:flex;
+  justify-content: center;
+  align-items: center;
+  background: #111;
+  z-index:10;
+}
+#topBar div {
+  position: relative;
+  margin: 0 5px;
+}
+#topBar img {
+  width: 60px;
+  height: 60px;
+  border-radius:10px;
+}
+#topBar .dead {
+  position: absolute;
+  top:0;
+  left:0;
+  width:60px;
+  height:60px;
+  background: rgba(255,0,0,0.6);
+  font-size:50px;
+  color:white;
+  text-align:center;
+  line-height:60px;
+  border-radius:10px;
+}
+#winner { position:absolute; top:50%; width:100%; font-size:3em; display:none; color:yellow; }
+</style>
+</head>
+<body>
+
+<div id="topBar"></div>
+<canvas id="game"></canvas>
+<div id="winner"></div>
+
+<script>
+// Canvas
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+function resize(){canvas.width=innerWidth; canvas.height=innerHeight-80;} // abajo de la barra
+resize(); window.addEventListener("resize", resize);
+
+// 🖼️ Imágenes
+const imgs = {
+  oli: new Image(), dante: new Image(), milo: new Image(), oliTrabajador: new Image(),
+  mama2021: new Image(), abuela: new Image(), oli2023: new Image(), abuelo: new Image()
+};
+imgs.oli.src="OLI.jpg"; imgs.dante.src="DANTE.jpg"; imgs.milo.src="MILO.jpg"; imgs.oliTrabajador.src="OLI TRABAJADOR.jpg";
+imgs.mama2021.src="Mama del 2021.jpg"; imgs.abuela.src="abuela.jpg"; imgs.oli2023.src="OLI DEL 2023.jpg"; imgs.abuelo.src="IMG_20251128_134515202_NV.jpg";
+
+// 👥 Personajes
+const sizeP=50;
+const personajes=[
+  {img:imgs.oli, x:canvas.width/2, y:canvas.height-120, alive:true, player:true, name:"Oli"},
+  {img:imgs.dante, x:100, y:canvas.height-120, alive:true, name:"Dante"},
+  {img:imgs.milo, x:200, y:canvas.height-120, alive:true, name:"Milo"},
+  {img:imgs.oliTrabajador, x:300, y:canvas.height-120, alive:true, name:"Oli Trabajador"},
+  {img:imgs.mama2021, x:400, y:canvas.height-120, alive:true, name:"Mama 2021"},
+  {img:imgs.abuela, x:500, y:canvas.height-120, alive:true, name:"Abuela"},
+  {img:imgs.oli2023, x:600, y:canvas.height-120, alive:true, name:"Oli 2023"},
+  {img:imgs.abuelo, x:700, y:canvas.height-120, alive:true, name:"Abuelo"}
+];
+
+// Barra superior de personajes
+const topBar = document.getElementById("topBar");
+personajes.forEach(p=>{
+  const div = document.createElement("div");
+  const img = document.createElement("img");
+  img.src = p.img.src;
+  div.appendChild(img);
+  div.className = "charDiv";
+  topBar.appendChild(div);
+  p.div = div;
+});
+
+// ⚽ Pelotas
+const pelotas=[];
+function crearPelota(){ pelotas.push({ x:Math.random()*canvas.width, y:-50, size:30, speed:4+Math.random()*4 }); }
+
+// 🎮 Control del jugador
+let left=false, right=false;
+document.addEventListener("keydown", e=>{ if(e.key=="ArrowLeft") left=true; if(e.key=="ArrowRight") right=true; });
+document.addEventListener("keyup", e=>{ if(e.key=="ArrowLeft") left=false; if(e.key=="ArrowRight") right=false; });
+
+// 🧠 Inteligencia de la IA
+const inteligenciaDeIA = 700; // % de reacción
+
+// Winner
+const winnerDiv = document.getElementById("winner");
+
+// IA para esquivar
+function moverIA(p){
+  if(!p.alive) return;
+  if(Math.random()*100>inteligenciaDeIA) return;
+  const peligros = pelotas.filter(b=>b.y<p.y+50);
+  if(peligros.length===0) return;
+  let closest = null, minDist=Infinity;
+  peligros.forEach(b=>{
+    const dx=(b.x)-(p.x+sizeP/2);
+    const dy=(b.y)-(p.y+sizeP/2);
+    const dist = Math.sqrt(dx*dx+dy*dy);
+    if(dist<minDist){ minDist=dist; closest=b; }
+  });
+  if(!closest) return;
+  if(closest.x < p.x+sizeP/2) p.x+=2.5;
+  else p.x-=2.5;
+  if(p.x<0)p.x=0; if(p.x>canvas.width-sizeP)p.x=canvas.width-sizeP;
+}
+
+// Loop principal
+function loop(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Crear pelotas
+  if(Math.random()<0.05) crearPelota();
+  pelotas.forEach(b=>b.y+=b.speed);
+
+  // Mover personajes
+  personajes.forEach((p,i)=>{
+    if(!p.alive) return;
+    if(p.player){ if(left)p.x-=6; if(right)p.x+=6; if(p.x<0)p.x=0; if(p.x>canvas.width-sizeP)p.x=canvas.width-sizeP; }
+    else moverIA(p);
+    ctx.drawImage(p.img,p.x,p.y,sizeP,sizeP);
+  });
+
+  // Colisiones
+  pelotas.forEach(b=>{
+    personajes.forEach(p=>{
+      if(!p.alive) return;
+      const dx=(b.x)-(p.x+sizeP/2);
+      const dy=(b.y)-(p.y+sizeP/2);
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<b.size/2 + sizeP/2){
+        p.alive=false;
+        // Marcar con X
+        if(!p.div.querySelector(".dead")){
+          const xMark = document.createElement("div");
+          xMark.className="dead";
+          xMark.textContent="X";
+          p.div.appendChild(xMark);
+        }
+      }
+    });
+  });
+
+  // Dibujar pelotas
+  pelotas.forEach(b=>{
+    ctx.fillStyle="red";
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,b.size/2,0,Math.PI*2);
+    ctx.fill();
+  });
+
+  // Revisar ganador
+  const vivos = personajes.filter(p=>p.alive);
+  if(vivos.length===1){
+    winnerDiv.style.display="block";
+    winnerDiv.textContent = "¡Ganador: "+vivos[0].name+"! 🎉";
+    return;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
